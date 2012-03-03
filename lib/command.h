@@ -102,6 +102,8 @@ enum node_type
   FORWARDING_NODE,		/* IP forwarding node. */
   PROTOCOL_NODE,                /* protocol filtering node */
   VTY_NODE,			/* Vty node. */
+  EXT_ROUTES_NODE,
+  EXT_PROTOS_NODE,
 };
 
 /* Node which has some commands and prompt string and configuration

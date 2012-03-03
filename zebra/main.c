@@ -333,6 +333,8 @@ main (int argc, char **argv)
   kernel_init ();
   interface_list ();
   route_read ();
+  memset(&zebrad.ext_tables, 0, 32);
+  memset(&zebrad.ext_protos, 0, 32);
 
   /* Sort VTY commands. */
   sort_node ();

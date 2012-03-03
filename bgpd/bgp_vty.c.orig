@@ -6829,7 +6829,6 @@ bgp_show_summary_vty (struct vty *vty, const char *name,
                       afi_t afi, safi_t safi)
 {
   struct bgp *bgp;
-  struct listnode *node, *nnode;
 
   if (name)
     {
@@ -6844,14 +6843,7 @@ bgp_show_summary_vty (struct vty *vty, const char *name,
       bgp_show_summary (vty, bgp, afi, safi);
       return CMD_SUCCESS;
     }
-
-  for (ALL_LIST_ELEMENTS (bm->bgp, node, nnode, bgp))
-  {
-    bgp_show_summary (vty, bgp, afi, safi);
-    vty_out (vty, "%s", VTY_NEWLINE);
-  }
-  return CMD_SUCCESS;
-
+  
   bgp = bgp_get_default ();
 
   if (bgp)
@@ -7751,7 +7743,6 @@ bgp_show_neighbor_vty (struct vty *vty, const char *name,
 {
   int ret;
   struct bgp *bgp;
-  struct listnode *node, *nnode;
   union sockunion su;
 
   if (ip_str)
@@ -7778,14 +7769,6 @@ bgp_show_neighbor_vty (struct vty *vty, const char *name,
 
       return CMD_SUCCESS;
     }
-
-  for (ALL_LIST_ELEMENTS (bm->bgp, node, nnode, bgp))
-  {
-    bgp_show_neighbor (vty, bgp, type, &su);
-    vty_out (vty, "%s", VTY_NEWLINE);
-  }
-  return CMD_SUCCESS;
-
 
   bgp = bgp_get_default ();
 

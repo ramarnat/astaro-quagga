@@ -80,8 +80,11 @@ ospf_str2area_id (const char *str, struct in_addr *area_id, int *format)
   /* match "<0-4294967295>". */
   else
     {
+      if (*str == '-')
+        return -1;
+      errno = 0;
       ret = strtoul (str, &endptr, 10);
-      if (*endptr != '\0' || (ret == ULONG_MAX && errno == ERANGE))
+      if (*endptr != '\0' || errno || ret > UINT32_MAX)
         return -1;
 
       area_id->s_addr = htonl (ret);
@@ -109,6 +112,8 @@ str2distribute_source (const char *str, int *source)
     *source = ZEBRA_ROUTE_RIP;
   else if (strncmp (str, "b", 1) == 0)
     *source = ZEBRA_ROUTE_BGP;
+  else if (strncmp (str, "e", 1) == 0)
+    *source = ZEBRA_ROUTE_EXT;
   else
     return 0;
 

@@ -77,6 +77,8 @@ struct zebra_t
 
   /* default table */
   int rtm_table_default;
+  u_char ext_tables[32];
+  u_char ext_protos[32];
 
   /* rib work queue */
   struct work_queue *ribq;

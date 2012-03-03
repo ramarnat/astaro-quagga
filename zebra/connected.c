@@ -189,7 +189,7 @@ connected_up_ipv4 (struct interface *ifp, struct connected *ifc)
     return;
 
   rib_add_ipv4 (ZEBRA_ROUTE_CONNECT, 0, &p, NULL, NULL, ifp->ifindex,
-	RT_TABLE_MAIN, ifp->metric, 0);
+	RT_TABLE_MAIN, ifp->metric, 0, 0);
 
   rib_update ();
 }

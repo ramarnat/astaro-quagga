@@ -643,7 +643,7 @@ netlink_interface_addr (struct sockaddr_nl *snl, struct nlmsghdr *h)
 static int
 netlink_routing_table (struct sockaddr_nl *snl, struct nlmsghdr *h)
 {
-  int len;
+  int len, proto;
   struct rtmsg *rtm;
   struct rtattr *tb[RTA_MAX + 1];
   u_char flags = 0;
@@ -667,7 +667,7 @@ netlink_routing_table (struct sockaddr_nl *snl, struct nlmsghdr *h)
 
   table = rtm->rtm_table;
 #if 0                           /* we weed them out later in rib_weed_tables () */
-  if (table != RT_TABLE_MAIN && table != zebrad.rtm_table_default)
+  if (table != RT_TABLE_MAIN && table != RT_TABLE_DEFAULT && table != zebrad.rtm_table_default)
     return 0;
 #endif
 
@@ -723,7 +723,7 @@ netlink_routing_table (struct sockaddr_nl *snl, struct nlmsghdr *h)
       memcpy (&p.prefix, dest, 4);
       p.prefixlen = rtm->rtm_dst_len;
 
-      rib_add_ipv4 (ZEBRA_ROUTE_KERNEL, flags, &p, gate, src, index, table, metric, 0);
+      rib_add_ipv4 (ZEBRA_ROUTE_KERNEL, flags, &p, gate, src, index, table, metric, 0, rtm->rtm_protocol);
     }
 #ifdef HAVE_IPV6
   if (rtm->rtm_family == AF_INET6)
@@ -760,9 +760,11 @@ static const struct message rtproto_str[] = {
 static int
 netlink_route_change (struct sockaddr_nl *snl, struct nlmsghdr *h)
 {
-  int len;
+  int len, i, proto;
   struct rtmsg *rtm;
   struct rtattr *tb[RTA_MAX + 1];
+  struct listnode *node, *nnode;
+  struct zserv *client;
 
   char anyaddr[16] = { 0 };
 
@@ -798,7 +800,7 @@ netlink_route_change (struct sockaddr_nl *snl, struct nlmsghdr *h)
     }
 
   table = rtm->rtm_table;
-  if (table != RT_TABLE_MAIN && table != zebrad.rtm_table_default)
+  if (table != RT_TABLE_MAIN && table != RT_TABLE_DEFAULT && table != zebrad.rtm_table_default)
     {
       return 0;
     }
@@ -866,10 +868,16 @@ netlink_route_change (struct sockaddr_nl *snl, struct nlmsghdr *h)
                        inet_ntoa (p.prefix), p.prefixlen);
         }
 
-      if (h->nlmsg_type == RTM_NEWROUTE)
-        rib_add_ipv4 (ZEBRA_ROUTE_KERNEL, 0, &p, gate, src, index, table, metric, 0);
+      if (zebrad.ext_tables[(table & ~0x07) >> 3] & (1 << (table & 0x07)) ||
+          zebrad.ext_protos[(rtm->rtm_protocol & ~0x07) >> 3] & (1 << (rtm->rtm_protocol & 0x07)))
+        proto = ZEBRA_ROUTE_EXT;
       else
-        rib_delete_ipv4 (ZEBRA_ROUTE_KERNEL, 0, &p, gate, index, table);
+        proto = ZEBRA_ROUTE_KERNEL;
+
+      if (h->nlmsg_type == RTM_NEWROUTE)
+        rib_add_ipv4 (proto, 0, &p, gate, src, index, table, metric, 0, rtm->rtm_protocol);
+      else
+        rib_delete_ipv4 (proto, 0, &p, gate, index, table);
     }
 
 #ifdef HAVE_IPV6
@@ -895,9 +903,9 @@ netlink_route_change (struct sockaddr_nl *snl, struct nlmsghdr *h)
         }
 
       if (h->nlmsg_type == RTM_NEWROUTE)
-        rib_add_ipv6 (ZEBRA_ROUTE_KERNEL, 0, &p, gate, index, table, metric, 0);
+        rib_add_ipv6 (proto, 0, &p, gate, index, table, metric, 0);
       else
-        rib_delete_ipv6 (ZEBRA_ROUTE_KERNEL, 0, &p, gate, index, table);
+        rib_delete_ipv6 (proto, 0, &p, gate, index, table);
     }
 #endif /* HAVE_IPV6 */
 
@@ -1247,7 +1255,7 @@ netlink_route (int cmd, int family, void *dest, int length, void *gate,
   req.n.nlmsg_flags = NLM_F_CREATE | NLM_F_REQUEST;
   req.n.nlmsg_type = cmd;
   req.r.rtm_family = family;
-  req.r.rtm_table = table;
+  req.r.rtm_table = length ? table : RT_TABLE_DEFAULT;
   req.r.rtm_dst_len = length;
   req.r.rtm_protocol = RTPROT_ZEBRA;
   req.r.rtm_scope = RT_SCOPE_UNIVERSE;
@@ -1322,7 +1330,7 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
   req.n.nlmsg_flags = NLM_F_CREATE | NLM_F_REQUEST;
   req.n.nlmsg_type = cmd;
   req.r.rtm_family = family;
-  req.r.rtm_table = rib->table;
+  req.r.rtm_table = p->prefixlen ? rib->table : RT_TABLE_DEFAULT;
   req.r.rtm_dst_len = p->prefixlen;
   req.r.rtm_protocol = RTPROT_ZEBRA;
   req.r.rtm_scope = RT_SCOPE_UNIVERSE;

@@ -756,7 +756,7 @@ rib_match_ipv6 (struct in6_addr *addr)
 #endif /* HAVE_IPV6 */
 
 #define RIB_SYSTEM_ROUTE(R) \
-        ((R)->type == ZEBRA_ROUTE_KERNEL || (R)->type == ZEBRA_ROUTE_CONNECT)
+        ((R)->type == ZEBRA_ROUTE_KERNEL || (R)->type == ZEBRA_ROUTE_CONNECT || (R)->type == ZEBRA_ROUTE_EXT)
 
 /* This function verifies reachability of one given nexthop, which can be
  * numbered or unnumbered, IPv4 or IPv6. The result is unconditionally stored
@@ -1492,7 +1492,7 @@ int
 rib_add_ipv4 (int type, int flags, struct prefix_ipv4 *p, 
 	      struct in_addr *gate, struct in_addr *src,
 	      unsigned int ifindex, u_int32_t vrf_id,
-	      u_int32_t metric, u_char distance)
+	      u_int32_t metric, u_char distance, int protocol)
 {
   struct rib *rib;
   struct rib *same = NULL;
@@ -1555,6 +1555,7 @@ rib_add_ipv4 (int type, int flags, struct prefix_ipv4 *p,
   rib->table = vrf_id;
   rib->nexthop_num = 0;
   rib->uptime = time (NULL);
+  rib->protocol = protocol;
 
   /* Nexthop settings. */
   if (gate)
@@ -1568,7 +1569,7 @@ rib_add_ipv4 (int type, int flags, struct prefix_ipv4 *p,
     nexthop_ifindex_add (rib, ifindex);
 
   /* If this route is kernel route, set FIB flag to the route. */
-  if (type == ZEBRA_ROUTE_KERNEL || type == ZEBRA_ROUTE_CONNECT)
+  if (type == ZEBRA_ROUTE_KERNEL || type == ZEBRA_ROUTE_CONNECT || type == ZEBRA_ROUTE_EXT)
     for (nexthop = rib->nexthop; nexthop; nexthop = nexthop->next)
       SET_FLAG (nexthop->flags, NEXTHOP_FLAG_FIB);
 
@@ -1788,7 +1789,7 @@ rib_add_ipv4_multipath (struct prefix_ipv4 *p, struct rib *rib)
     }
   
   /* If this route is kernel route, set FIB flag to the route. */
-  if (rib->type == ZEBRA_ROUTE_KERNEL || rib->type == ZEBRA_ROUTE_CONNECT)
+  if (rib->type == ZEBRA_ROUTE_KERNEL || rib->type == ZEBRA_ROUTE_CONNECT || rib->type == ZEBRA_ROUTE_EXT)
     for (nexthop = rib->nexthop; nexthop; nexthop = nexthop->next)
       SET_FLAG (nexthop->flags, NEXTHOP_FLAG_FIB);
 
@@ -1906,7 +1907,7 @@ rib_delete_ipv4 (int type, int flags, struct prefix_ipv4 *p,
      kernel. */
   if (! same)
     {
-      if (fib && type == ZEBRA_ROUTE_KERNEL)
+      if (fib && (type == ZEBRA_ROUTE_KERNEL || type == ZEBRA_ROUTE_EXT))
 	{
 	  /* Unset flags. */
 	  for (nexthop = fib->nexthop; nexthop; nexthop = nexthop->next)
@@ -2269,7 +2270,7 @@ rib_bogus_ipv6 (int type, struct prefix_ipv6 *p,
 #endif /* MUSICA */
     return 1;
   }
-  if (type == ZEBRA_ROUTE_KERNEL && IN6_IS_ADDR_UNSPECIFIED (&p->prefix)
+  if ((type == ZEBRA_ROUTE_KERNEL || type == ZEBRA_ROUTE_EXT) && IN6_IS_ADDR_UNSPECIFIED (&p->prefix)
       && p->prefixlen == 96 && gate && IN6_IS_ADDR_UNSPECIFIED (gate))
     {
       kernel_delete_ipv6_old (p, gate, ifindex, 0, table);
@@ -2357,7 +2358,7 @@ rib_add_ipv6 (int type, int flags, struct prefix_ipv6 *p,
     nexthop_ifindex_add (rib, ifindex);
 
   /* If this route is kernel route, set FIB flag to the route. */
-  if (type == ZEBRA_ROUTE_KERNEL || type == ZEBRA_ROUTE_CONNECT)
+  if (type == ZEBRA_ROUTE_KERNEL || type == ZEBRA_ROUTE_CONNECT || type == ZEBRA_ROUTE_EXT)
     for (nexthop = rib->nexthop; nexthop; nexthop = nexthop->next)
       SET_FLAG (nexthop->flags, NEXTHOP_FLAG_FIB);
 
@@ -2454,7 +2455,7 @@ rib_delete_ipv6 (int type, int flags, struct prefix_ipv6 *p,
      kernel. */
   if (! same)
     {
-      if (fib && type == ZEBRA_ROUTE_KERNEL)
+      if (fib && (type == ZEBRA_ROUTE_KERNEL || type == ZEBRA_ROUTE_EXT))
 	{
 	  /* Unset flags. */
 	  for (nexthop = fib->nexthop; nexthop; nexthop = nexthop->next)
@@ -2828,8 +2829,18 @@ rib_weed_table (struct route_table *table)
 	  if (CHECK_FLAG (rib->status, RIB_ENTRY_REMOVED))
 	    continue;
 
+	  if(rib->type == ZEBRA_ROUTE_KERNEL && 
+	    ((zebrad.ext_tables[(rib->table & ~0x07) >> 3] & 1 << (rib->table & 0x07)) ||
+	    (zebrad.ext_protos[(rib->protocol & ~0x07) >> 3] & 1 << (rib->protocol & 0x07)))) {
+		rib->type = ZEBRA_ROUTE_EXT;
+	  }
+
+
 	  if (rib->table != zebrad.rtm_table_default &&
-	      rib->table != RT_TABLE_MAIN)
+	      rib->table != RT_TABLE_MAIN &&
+	      rib->table != RT_TABLE_DEFAULT &&
+	      !(zebrad.ext_tables[(rib->table & ~0x07) >> 3] & 1 << (rib->table & 0x07)) &&
+	      rib->type == ZEBRA_ROUTE_KERNEL)
             rib_delnode (rn, rib);
 	}
 }
@@ -2860,7 +2871,7 @@ rib_sweep_table (struct route_table *table)
 	  if (CHECK_FLAG (rib->status, RIB_ENTRY_REMOVED))
 	    continue;
 
-	  if (rib->type == ZEBRA_ROUTE_KERNEL && 
+	  if ((rib->type == ZEBRA_ROUTE_KERNEL) && 
 	      CHECK_FLAG (rib->flags, ZEBRA_FLAG_SELFROUTE))
 	    {
 	      ret = rib_uninstall_kernel (rn, rib);

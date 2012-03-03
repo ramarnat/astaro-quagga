@@ -2006,7 +2006,6 @@ int
 bgp_get (struct bgp **bgp_val, as_t *as, const char *name)
 {
   struct bgp *bgp;
-  struct listnode *node, *nnode;
 
   /* Multiple instance check. */
   if (bgp_option_check (BGP_OPT_MULTIPLE_INSTANCE))
@@ -2014,24 +2013,13 @@ bgp_get (struct bgp **bgp_val, as_t *as, const char *name)
       if (name)
 	bgp = bgp_lookup_by_name (name);
       else
-        {
-          for (ALL_LIST_ELEMENTS (bm->bgp, node, nnode, bgp))
-            {
-              if (bgp->as == *as)
-                {
-                  *bgp_val = bgp;
-                  return 0;
-                }
-            }
-          bgp = bgp_get_default ();
-        }
+	bgp = bgp_get_default ();
 
       /* Already exists. */
       if (bgp)
 	{
           if (bgp->as != *as)
 	    {
-              goto NEW_AS;
 	      *as = bgp->as;
 	      return BGP_ERR_INSTANCE_MISMATCH;
 	    }
@@ -2067,7 +2055,6 @@ bgp_get (struct bgp **bgp_val, as_t *as, const char *name)
 	return BGP_ERR_INVALID_VALUE;
     }
 
-NEW_AS:
   bgp = bgp_create (as, name);
   listnode_add (bm->bgp, bgp);
   bgp_router_id_set(bgp, &router_id_zebra);

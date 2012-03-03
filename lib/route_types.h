@@ -39,14 +39,15 @@
 
 /* ospfd */
 #define QUAGGA_REDIST_STR_OSPFD \
-"(kernel|connected|static|rip|isis|bgp)"
+"(kernel|connected|static|rip|isis|bgp|external)"
 #define QUAGGA_REDIST_HELP_STR_OSPFD \
   "Kernel routes (not installed via the zebra RIB)\n" \
   "Connected routes (directly attached subnet or host)\n" \
   "Statically configured routes\n" \
   "Routing Information Protocol (RIP)\n" \
   "Intermediate System to Intermediate System (IS-IS)\n" \
-  "Border Gateway Protocol (BGP)\n"
+  "Border Gateway Protocol (BGP)\n" \
+  "Kernel external routes\n"
 
 /* ospf6d */
 #define QUAGGA_REDIST_STR_OSPF6D \

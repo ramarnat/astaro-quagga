@@ -1498,6 +1498,92 @@ DEFUN (config_table,
   return CMD_SUCCESS;
 }
 
+DEFUN (ip_route_ext_table, 
+       ip_route_ext_table_cmd,
+       "ip route ext-table <1-252>",
+       IP_STR
+       "Establish static routes\n"
+       "Define Kernel routing table as source for external routes\n"
+       "TABLE integer\n")
+{
+    int table;
+    if(argc != 1)
+        return CMD_WARNING;
+
+    table = strtol (argv[0], NULL, 10); 
+    if (table < 1 || table > 252) {
+        vty_out (vty, "table entry is invalid%s", VTY_NEWLINE);
+       return CMD_WARNING;
+    }
+    zebrad.ext_tables[(table & ~0x07) >> 3] |= 1 << (table & 0x07);
+    return CMD_SUCCESS;
+}
+
+DEFUN (no_ip_route_ext_table, 
+       no_ip_route_ext_table_cmd,
+       "no ip route ext-table <1-252>",
+       NO_STR
+       IP_STR
+       "Establish static routes\n"
+       "Remove Kernel routing table as source for external routes\n"
+       "TABLE integer\n")
+{
+    int table;
+    if(argc != 1)
+        return CMD_WARNING;
+
+    table = strtol (argv[0], NULL, 10); 
+    if (table < 1 || table > 252) {
+        vty_out (vty, "table entry is invalid%s", VTY_NEWLINE);
+       return CMD_WARNING;
+    }
+    zebrad.ext_tables[(table & ~0x07) >> 3] &= ~(1 << (table & 0x07));
+    return CMD_SUCCESS;
+}
+
+DEFUN (ip_route_ext_proto, 
+       ip_route_ext_proto_cmd,
+       "ip route ext-proto <0-255>",
+       IP_STR
+       "Establish static routes\n"
+       "Define Kernel proto as source for external routes\n"
+       "PROTO integer\n")
+{
+    int table;
+    if(argc != 1)
+        return CMD_WARNING;
+
+    table = strtol (argv[0], NULL, 10); 
+    if (table < 0 || table > 255) {
+        vty_out (vty, "proto entry is invalid%s", VTY_NEWLINE);
+       return CMD_WARNING;
+    }
+    zebrad.ext_protos[(table & ~0x07) >> 3] |= 1 << (table & 0x07);
+    return CMD_SUCCESS;
+}
+
+DEFUN (no_ip_route_ext_proto, 
+       no_ip_route_ext_proto_cmd,
+       "no ip route ext-proto <0-255>",
+       NO_STR
+       IP_STR
+       "Establish static routes\n"   
+       "Remove Kernel proto as source for external routes\n"
+       "PROTO integer\n")
+{
+    int table;
+    if(argc != 1)
+        return CMD_WARNING;
+
+    table = strtol (argv[0], NULL, 10); 
+    if (table < 0 || table > 255) {
+        vty_out (vty, "proto entry is invalid%s", VTY_NEWLINE);
+       return CMD_WARNING;
+    }
+    zebrad.ext_protos[(table & ~0x07) >> 3] &= ~(1 << (table & 0x07));
+    return CMD_SUCCESS;
+}
+
 DEFUN (ip_forwarding,
        ip_forwarding_cmd,
        "ip forwarding",
@@ -1575,6 +1661,21 @@ static struct cmd_node table_node =
   "",				/* This node has no interface. */
   1
 };
+
+struct cmd_node ext_routes_node =
+{
+  EXT_ROUTES_NODE,
+  "",                          /* This node has no interface. */
+  1
+};
+
+struct cmd_node ext_protos_node =
+{
+  EXT_PROTOS_NODE,
+  "",                          /* This node has no interface. */
+  1
+};
+
 
 /* Only display ip forwarding is enabled or not. */
 DEFUN (show_ip_forwarding,
@@ -1688,6 +1789,28 @@ config_write_forwarding (struct vty *vty)
   return 0;
 }
 
+static int
+config_write_ext_routes(struct vty *vty)
+{
+    int i;
+    for(i = 1; i < 253; i++) {
+       if(zebrad.ext_tables[(i & ~0x07) >> 3] & (1 << (i & 0x07)))
+           vty_out (vty, "ip route ext-table %d%s", i, VTY_NEWLINE);
+    }
+    return 0;
+}
+
+static int
+config_write_ext_protos(struct vty *vty)
+{
+    int i;
+    for(i = 1; i < 253; i++) {
+       if(zebrad.ext_protos[(i & ~0x07) >> 3] & (1 << (i & 0x07)))
+           vty_out (vty, "ip route ext-proto %d%s", i, VTY_NEWLINE);
+    }
+    return 0;
+}
+
 /* table node for routing tables. */
 static struct cmd_node forwarding_node =
 {
@@ -1706,6 +1829,8 @@ zebra_init (void)
 
   /* Install configuration write function. */
   install_node (&table_node, config_write_table);
+  install_node (&ext_routes_node, config_write_ext_routes);
+  install_node (&ext_protos_node, config_write_ext_protos);
   install_node (&forwarding_node, config_write_forwarding);
 
   install_element (VIEW_NODE, &show_ip_forwarding_cmd);
@@ -1718,6 +1843,10 @@ zebra_init (void)
   install_element (VIEW_NODE, &show_table_cmd);
   install_element (ENABLE_NODE, &show_table_cmd);
   install_element (CONFIG_NODE, &config_table_cmd);
+  install_element (CONFIG_NODE, &ip_route_ext_table_cmd);
+  install_element (CONFIG_NODE, &ip_route_ext_proto_cmd);
+  install_element (CONFIG_NODE, &no_ip_route_ext_table_cmd);
+  install_element (CONFIG_NODE, &no_ip_route_ext_proto_cmd);
 #endif /* HAVE_NETLINK */
 
 #ifdef HAVE_IPV6

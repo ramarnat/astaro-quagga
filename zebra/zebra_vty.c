@@ -30,6 +30,8 @@
 
 #include "zebra/zserv.h"
 
+extern struct zebra_t zebrad;
+
 /* General fucntion for static route. */
 static int
 zebra_static_ipv4 (struct vty *vty, int add_cmd, const char *dest_str,
@@ -688,7 +690,8 @@ vty_show_ip_route (struct vty *vty, struct route_node *rn, struct rib *rib)
 		
 	  /* Distance and metric display. */
 	  if (rib->type != ZEBRA_ROUTE_CONNECT 
-	      && rib->type != ZEBRA_ROUTE_KERNEL)
+	      && rib->type != ZEBRA_ROUTE_KERNEL
+	      && rib->type != ZEBRA_ROUTE_EXT)
 	    len += vty_out (vty, " [%d/%d]", rib->distance,
 			    rib->metric);
 	}
@@ -804,7 +807,7 @@ vty_show_ip_route (struct vty *vty, struct route_node *rn, struct rib *rib)
 
 #define SHOW_ROUTE_V4_HEADER "Codes: K - kernel route, C - connected, " \
   "S - static, R - RIP, O - OSPF,%s       I - ISIS, B - BGP, " \
-  "> - selected route, * - FIB route%s%s"
+  "> - selected route, E - EXT, * - FIB route%s%s"
 
 DEFUN (show_ip_route,
        show_ip_route_cmd,
@@ -922,7 +925,7 @@ DEFUN (show_ip_route_supernets,
 
 DEFUN (show_ip_route_protocol,
        show_ip_route_protocol_cmd,
-       "show ip route (bgp|connected|isis|kernel|ospf|rip|static)",
+       "show ip route (bgp|connected|isis|kernel|ospf|rip|static|ext)",
        SHOW_STR
        IP_STR
        "IP routing table\n"
@@ -932,7 +935,8 @@ DEFUN (show_ip_route_protocol,
        "Kernel\n"
        "Open Shortest Path First (OSPF)\n"
        "Routing Information Protocol (RIP)\n"
-       "Static routes\n")
+       "Static routes\n"
+       "External routes\n")
 {
   int type;
   struct route_table *table;
@@ -954,6 +958,8 @@ DEFUN (show_ip_route_protocol,
     type = ZEBRA_ROUTE_RIP;
   else if (strncmp (argv[0], "s", 1) == 0)
     type = ZEBRA_ROUTE_STATIC;
+  else if (strncmp (argv[0], "e", 1) == 0)
+    type = ZEBRA_ROUTE_EXT;
   else 
     {
       vty_out (vty, "Unknown route type%s", VTY_NEWLINE);
@@ -1766,7 +1772,7 @@ vty_show_ipv6_route (struct vty *vty, struct route_node *rn,
     }
 }
 
-#define SHOW_ROUTE_V6_HEADER "Codes: K - kernel route, C - connected, S - static, R - RIPng, O - OSPFv3,%s       I - ISIS, B - BGP, * - FIB route.%s%s"
+#define SHOW_ROUTE_V6_HEADER "Codes: K - kernel route, C - connected, S - static, R - RIPng, O - OSPFv3,%s       I - ISIS, B - BGP, E - EXT, * - FIB route.%s%s"
 
 DEFUN (show_ipv6_route,
        show_ipv6_route_cmd,
@@ -1842,7 +1848,7 @@ DEFUN (show_ipv6_route_prefix_longer,
 
 DEFUN (show_ipv6_route_protocol,
        show_ipv6_route_protocol_cmd,
-       "show ipv6 route (bgp|connected|isis|kernel|ospf6|ripng|static)",
+       "show ipv6 route (bgp|connected|isis|kernel|ospf6|ripng|static|ext)",
        SHOW_STR
        IP_STR
        "IP routing table\n"
@@ -1852,7 +1858,8 @@ DEFUN (show_ipv6_route_protocol,
        "Kernel\n"
        "Open Shortest Path First (OSPFv3)\n"
        "Routing Information Protocol (RIPng)\n"
-       "Static routes\n")
+       "Static routes\n"
+       "External routes\n")
 {
   int type;
   struct route_table *table;
@@ -1874,6 +1881,8 @@ DEFUN (show_ipv6_route_protocol,
     type = ZEBRA_ROUTE_RIPNG;
   else if (strncmp (argv[0], "s", 1) == 0)
     type = ZEBRA_ROUTE_STATIC;
+  else if (strncmp (argv[0], "e", 1) == 0)
+    type = ZEBRA_ROUTE_EXT;
   else 
     {
       vty_out (vty, "Unknown route type%s", VTY_NEWLINE);
